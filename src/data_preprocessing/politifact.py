@@ -381,15 +381,16 @@ def mapping_edges(df, mapping_src, mapping_dst):
 
 def load_politifact_heterodata():
     base_dir = get_base_dir()
-    nodes_dir = os.path.join(base_dir, 'features')
-    edges_dir = os.path.join(base_dir, 'edgelists')
+    nodes_dir = os.path.join(base_dir, 'heterodata', 'features')
+    edges_dir = os.path.join(base_dir, 'heterodata', 'edgelists')
 
     # Load node features
 
     dim = 128
 
+
     NX = torch.load(os.path.join(nodes_dir, 'NX_'+str(dim)+'_tensor.pt'))
-    NY = torch.load(os.path.join(base_dir, 'NY_tensor.pt'))
+    NY = torch.load(os.path.join(base_dir, 'heterodata', 'NY_tensor.pt'))
     TX = torch.load(os.path.join(nodes_dir, 'TX_' + str(dim) + '_tensor_v2.pt'))
     UX = torch.load(os.path.join(nodes_dir, 'UX_'+str(dim)+'_tensor.pt'))
     HX = torch.load(os.path.join(nodes_dir, 'HX_'+str(dim)+'_tensor.pt'))
@@ -421,11 +422,15 @@ def load_politifact_heterodata():
 
     # NODES
 
-    data['news'].x = NX
+    # data['news'].x = NX
+    data["news"].x = get_sparse_eye(NX.shape[0])
     data['news'].y = NY
-    data['tweet'].x = TX
-    data['user'].x = UX
-    data['hashtag'].x = HX
+    # data['tweet'].x = TX
+    data['tweet'].x = get_sparse_eye(TX.shape[0])
+    # data['user'].x = UX
+    data['user'].x = get_sparse_eye(UX.shape[0])
+    # data['hashtag'].x = HX
+    data['hashtag'].x = get_sparse_eye(HX.shape[0])
 
     # EDGES
 
@@ -502,8 +507,8 @@ def load_politifact_heterodata():
     return data
 
 
-data = load_politifact_heterodata()
-print(data)
+#data = load_politifact_heterodata()
+#print(data)
 
 """
 print(torch.min(data['tweet', 'discusses', 'news'].edge_index, dim=1).values)

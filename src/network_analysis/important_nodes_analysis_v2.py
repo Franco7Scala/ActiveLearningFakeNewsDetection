@@ -10,6 +10,7 @@ from torch_geometric.utils import to_networkx
 from networkx.algorithms.community import greedy_modularity_communities, asyn_lpa_communities
 
 from data_preprocessing.mumin import load_mumin_heterodata
+from data_preprocessing.politifact import load_politifact_heterodata
 from data_utils import open_pickle, get_base_dir
 
 
@@ -91,19 +92,19 @@ def community_detection_louvain(user_graph, user_id_map, hetero_data):
     return df
 
 #  return a dictionary where each user maps to a tuple (true_claims, false_claims)
-def user_claim_discussion_stats(hetero_data, k):
-    claim_to_tweet = hetero_data.edge_index_dict[('claim', 'is_discussed_by', 'tweet')]
+def user_news_discussion_stats(hetero_data, k, target_type):
+    news_to_tweet = hetero_data.edge_index_dict[(target_type, 'is_discussed_by', 'tweet')]
     tweet_to_user = hetero_data.edge_index_dict[('tweet', 'is_posted_by', 'user')]
     retweet_to_user = hetero_data.edge_index_dict[('tweet', 'is_retweeted_by', 'user')]
     tweet_to_user_combined = torch.cat([tweet_to_user, retweet_to_user], dim=1)
 
-    claim_labels = hetero_data['claim'].y
+    claim_labels = hetero_data[target_type].y
 
     user_stats = {}
 
-    for i in range(claim_to_tweet.size(1)):
-        claim, tweet = claim_to_tweet[:, i]
-        claim_label = claim_labels[claim].item()
+    for i in range(news_to_tweet.size(1)):
+        claim, tweet = news_to_tweet[:, i]
+        news_label = claim_labels[claim].item()
 
         user_indices = torch.where(tweet_to_user_combined[0] == tweet)[0]
         users = tweet_to_user_combined[1, user_indices]
@@ -111,9 +112,9 @@ def user_claim_discussion_stats(hetero_data, k):
         for user in users.tolist():
             if user not in user_stats:
                 user_stats[user] = {'true': 0, 'false': 0}
-            if claim_label == 0:
+            if news_label == 0:
                 user_stats[user]['true'] += 1
-            elif claim_label == 1:
+            elif news_label == 1:
                 user_stats[user]['false'] += 1
 
     #user_stats_summary = {user: (stats['true'], stats['false']) for user, stats in user_stats.items()}
@@ -176,84 +177,91 @@ def check_nodes_position(central_nodes, important_nodes, no_of_parts):
     # Return results
     return dominant_section_index, section_counts
 
+def topk_communities_analysis(df_communities, top_k_users, strategy):
+    topk_communities = df_communities[df_communities['user_id'].isin(top_k_users)] #include only rows with user_id in top_k_users
+    community_counts = topk_communities.groupby('community_id').size().reset_index(name='topk_user_count') #group by community_id and count the number of top-k users in each community
+    num_communities_with_topk = community_counts.shape[0] #compute the number of communities containing at least one top-k node
+    communities_with_multiple_topk = community_counts[community_counts['topk_user_count'] > 1] #identify communities containing multiple top-k nodes
+    print(f"Total number of communities containing at least one top-k node: {num_communities_with_topk}")
+    print(f"Number of communities containing multiple top-k nodes: {communities_with_multiple_topk.shape[0]}")
+    community_counts.to_csv(os.path.join('out_dir', f'community_counts_{strategy}.csv'), index=False)
+    communities_with_multiple_topk.to_csv(os.path.join('out_dir', f'communities_with_multiple_topk_{strategy}.csv'), index=False)
 
 
+k = 100
 
-heterodata = load_mumin_heterodata()
-#user_graph, user_id_map = construct_user_graph(heterodata)
+#important_node_ids = open_pickle(os.path.join(get_base_dir(), "selected_1_0_margin.pkl")) #last 100: [-100:]
+#important_node_ids = set(open_pickle(os.path.join(get_base_dir(), "selected_1_0_big_loss.pkl"))["user"]) #last 100: [-100:]
+#print(f"No. of users: {len(important_node_ids)}")
+
+
+""" LOAD/GENERATE GRAPHS """
+heterodata = load_politifact_heterodata()
+user_graph, user_id_map = construct_user_graph(heterodata)
 #print(user_graph)
 
-user_stats = user_claim_discussion_stats(heterodata, 50)
 
+""" COMPUTE USER STATS wrt LABELS"""
+user_stats = user_news_discussion_stats(heterodata, target_type="news", k=k)
+# TODO: da salvare
 
-'''
+out_dir = "/mnt/nas/martirano/politifact_cleaned/network_analysis"
+
+""" COMMUNITY DETECTION """
+
 print("Performing community detection...")
 df = community_detection_louvain(user_graph, user_id_map, heterodata)
-df.to_csv(os.path.join(get_base_dir(), 'user_communities_louvain.csv'), index=False)
-print(df.head())
-'''
+df.to_csv(os.path.join(out_dir, 'user_communities_louvain.csv'), index=False)
 
-'''
-df = pd.read_csv(os.path.join(get_base_dir(), 'user_communities_louvain.csv'))
+df = pd.read_csv(os.path.join(out_dir, 'user_communities_louvain.csv'))
 num_communities = df['community'].nunique()
 print(f"Number of communities detected: {num_communities} for {df.shape[0]} users")
-'''
 
 
-k = 50
-df_deg = pd.read_csv(os.path.join(get_base_dir(), 'user_degree_centrality.csv'))
-top_k_users_deg = set(df_deg.nlargest(k, 'degree_centrality_score')['user_id'])
-
-df_pag = pd.read_csv(os.path.join(get_base_dir(), 'user_pagerank.csv'))
-top_k_users_pag = set(df_pag.nlargest(k, 'pagerank_score')['user_id'])
-
-df_bet = pd.read_csv(os.path.join(get_base_dir(), 'user_betweenness_centrality.csv'))
-top_k_users_bet = set(df_bet.nlargest(k, 'betweenness_centrality_score')['user_id'])
-
-df_clo = pd.read_csv(os.path.join(get_base_dir(), 'user_closeness_centrality.csv'))
-top_k_users_clo = set(df_clo.nlargest(k, 'closeness_centrality_score')['user_id'])
-
-common_top_k = top_k_users_deg & top_k_users_pag & top_k_users_bet & top_k_users_clo
-print(f"Users common across all top k sets: {common_top_k}")
-
+""" COMPUTE CENTRALITY MEASURES AND TOP-k NODES"""
 
 '''
 print("processing degree centrality...")
-topk_degree = get_topk_centrality_nodes(user_graph, user_id_map, 50, "degree")
+topk_degree = get_topk_centrality_nodes(user_graph, user_id_map, k, "degree")
 df_degree = pd.DataFrame(list(topk_degree.items()), columns=['user_id', 'degree_centrality_score'])
-df_degree.to_csv(os.path.join(get_base_dir(), 'user_degree_centrality.csv'), index=False)
+df_degree.to_csv(os.path.join(out_dir, 'user_degree_centrality.csv'), index=False)
 print(df_degree.head())
 
 print("processing pagerank...")
-topk_pagerank = get_topk_centrality_nodes(user_graph, user_id_map, 50, "pagerank")
+topk_pagerank = get_topk_centrality_nodes(user_graph, user_id_map, k, "pagerank")
 df_pagerank = pd.DataFrame(list(topk_pagerank.items()), columns=['user_id', 'pagerank_score'])
-df_pagerank.to_csv(os.path.join(get_base_dir(), 'user_pagerank.csv'), index=False)
+df_pagerank.to_csv(os.path.join(out_dir, 'user_pagerank.csv'), index=False)
 print(df_pagerank.head())
-
-print("processing katz centrality...")
-topk_katz = get_topk_centrality_nodes(user_graph, user_id_map, 50, "katz")
-df_katz = pd.DataFrame(list(topk_katz.items()), columns=['user_id', 'katz_centrality_score'])
-df_katz.to_csv(os.path.join(get_base_dir(), 'user_katz_centrality.csv'), index=False)
-print(df_katz.head())
-
 
 print("processing betweenness centrality...")
 topk_betweenness = get_topk_centrality_nodes(user_graph, user_id_map, 50, "betweenness")
 df_betweenness = pd.DataFrame(list(topk_betweenness.items()), columns=['user_id', 'betweenness_centrality_score'])
-df_betweenness.to_csv(os.path.join(get_base_dir(), 'user_betweenness_centrality.csv'), index=False)
+df_betweenness.to_csv(os.path.join(out_dir, 'user_betweenness_centrality.csv'), index=False)
 print(df_betweenness.head())
 
 print("processing closeness centrality...")
 topk_closeness = get_topk_centrality_nodes(user_graph, user_id_map, 50, "closeness")
 df_closeness = pd.DataFrame(list(topk_closeness.items()), columns=['user_id', 'closeness_centrality_score'])
-df_closeness.to_csv(os.path.join(get_base_dir(), 'user_closeness_centrality.csv'), index=False)
+df_closeness.to_csv(os.path.join(out_dir, 'user_closeness_centrality.csv'), index=False)
 print(df_closeness.head())
+
+df_deg = pd.read_csv(os.path.join(out_dir, 'user_degree_centrality.csv'))
+top_k_users_deg = set(df_deg.nlargest(k, 'degree_centrality_score')['user_id'])
+
+df_pag = pd.read_csv(os.path.join(out_dir, 'user_pagerank.csv'))
+top_k_users_pag = set(df_pag.nlargest(k, 'pagerank_score')['user_id'])
+
+df_bet = pd.read_csv(os.path.join(out_dir, 'user_betweenness_centrality.csv'))
+top_k_users_bet = set(df_bet.nlargest(k, 'betweenness_centrality_score')['user_id'])
+
+df_clo = pd.read_csv(os.path.join(out_dir, 'user_closeness_centrality.csv'))
+top_k_users_clo = set(df_clo.nlargest(k, 'closeness_centrality_score')['user_id'])
+
+common_top_k = top_k_users_deg & top_k_users_pag & top_k_users_bet & top_k_users_clo
+print(f"Users common across all top k sets: {common_top_k}")
 '''
 
-#print(get_topk_centrality_nodes(user_graph, 30, "closeness"))
-important_node_ids = set(open_pickle(os.path.join(get_base_dir(), "selected_1_0_all.pkl"))["user"]) #last 100: [-100:]
-print(f"No. of users: {len(important_node_ids)}")
-#print(important_node_ids)
+
 
 '''
 res = check_important_nodes_in_topk(important_node_ids, top_k_users_deg, top_k_users_bet, top_k_users_clo, top_k_users_pag)
@@ -264,6 +272,7 @@ test = check_nodes_higher_discussions(important_node_ids, user_stats)
 print(len(test))
 '''
 
+'''
 no_of_parts = 100
 
 dominant_section_deg, sections_deg = check_nodes_position(top_k_users_deg, important_node_ids, no_of_parts)
@@ -289,3 +298,11 @@ print("pagerank")
 print(dominant_section_pag)
 print(sections_pag)
 print()
+
+#topk_communities_analysis(df, top_k_users_deg, "degree_centrality") #df_communities
+#topk_communities_analysis(df, top_k_users_bet, "betweenneess_centrality") #df_communities
+#topk_communities_analysis(df, top_k_users_clo, "closeness_centrality") #df_communities
+#topk_communities_analysis(df, top_k_users_pag, "pagerank") #df_communities
+
+#topk_communities_analysis(df, important_node_ids, "AL_margin") #df_communities
+'''

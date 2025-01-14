@@ -22,7 +22,7 @@ from trainer import train_node_classifier_single_snapshot
 
 dataset_name = "politifact"
 n_cycles = 1
-n_epochs = 500
+n_epochs = 250
 k = 100
 min_lr = 1e-4
 sampling_technique = MarginALTechnique  # RandomALTechnique LCSALTechnique EntropyALTechnique MarginALTechnique
