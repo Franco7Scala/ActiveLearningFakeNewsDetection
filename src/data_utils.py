@@ -44,8 +44,8 @@ def get_sparse_eye(size):
     return i
 
 
-def learnable_embedding(tensor, emb_dim): 
-    emb = nn.Embedding(tensor.shape[0], emb_dim) 
+def learnable_embedding(tensor, embedding_dim):
+    emb = nn.Embedding(tensor.shape[0], embedding_dim)
     return emb
 
 

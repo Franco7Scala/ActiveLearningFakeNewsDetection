@@ -9,7 +9,7 @@ from networkx.algorithms.community.louvain import louvain_communities
 from torch_geometric.utils import to_networkx
 from networkx.algorithms.community import greedy_modularity_communities, asyn_lpa_communities
 
-from data_preprocessing.mumin import load_mumin_heterodata
+#from data_preprocessing.mumin import load_mumin_heterodata
 from data_preprocessing.politifact import load_politifact_heterodata
 from data_utils import open_pickle, get_base_dir
 
