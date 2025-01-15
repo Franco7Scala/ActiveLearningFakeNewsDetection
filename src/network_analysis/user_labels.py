@@ -18,7 +18,7 @@ def extract_ordered_users_discussions():
 
 def generate_user_label(x):
     num_true, num_false, num_total = int(x[0]), int(x[1]), int(x[2])
-    difference = abs(num_true - num_false) / num_total
+    difference = abs(num_true - num_false) / num_total if num_total != 0 else 0
 
     if difference < 0.2:  # Less than 20% difference
         return "mixed"

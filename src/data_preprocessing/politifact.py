@@ -14,8 +14,8 @@ from torch_geometric.data import HeteroData
 from torch_geometric.transforms import AddMetaPaths
 import torch_geometric.transforms as T
 
-from data_utils import save_dict_to_pickle, open_pickle
-from utils import get_device
+from src.data_utils import save_dict_to_pickle, open_pickle
+from src.utils import get_device
 
 from src.data_utils import get_base_dir, get_sparse_eye, learnable_embedding
 
@@ -422,15 +422,15 @@ def load_politifact_heterodata():
 
     # NODES
 
-    # data['news'].x = NX
-    data["news"].x = get_sparse_eye(NX.shape[0])
+    data['news'].x = NX
+    #data["news"].x = get_sparse_eye(NX.shape[0])
     data['news'].y = NY
-    # data['tweet'].x = TX
-    data['tweet'].x = get_sparse_eye(TX.shape[0])
-    # data['user'].x = UX
-    data['user'].x = get_sparse_eye(UX.shape[0])
-    # data['hashtag'].x = HX
-    data['hashtag'].x = get_sparse_eye(HX.shape[0])
+    data['tweet'].x = TX
+    #data['tweet'].x = get_sparse_eye(TX.shape[0])
+    data['user'].x = UX
+    #data['user'].x = get_sparse_eye(UX.shape[0])
+    data['hashtag'].x = HX
+    #data['hashtag'].x = get_sparse_eye(HX.shape[0])
 
     # EDGES
 

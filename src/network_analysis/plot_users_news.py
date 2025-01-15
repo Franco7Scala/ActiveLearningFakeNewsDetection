@@ -1,3 +1,5 @@
+import pickle
+
 import numpy as np
 import pandas as pd
 import os
@@ -9,6 +11,7 @@ import matplotlib.patches as patches
 from src.data_preprocessing.politifact import load_politifact_heterodata
 from src.data_utils import get_base_dir, open_pickle
 from src.network_analysis.important_nodes_analysis_v2 import construct_user_graph
+from src.network_analysis.topk_users_stats import base_dir
 from src.network_analysis.user_labels import extract_ordered_users_discussions
 
 
@@ -75,104 +78,87 @@ def extract_topk_user_ids_by_label_politifact(k, label):
     sorted_users_labeled = [u for u in sorted_users if u[0] in users_labeled]
     topk_users = [user for user, _ in sorted_users_labeled[:k]]
 
-    heterodata = load_politifact_heterodata()
-    _, user_id_map = construct_user_graph(heterodata) #id_str: id_int
+    #heterodata = load_politifact_heterodata()
+    #_, user_id_map = construct_user_graph(heterodata) #id_str: id_int
 
-    topk_users_ids = [user_id_map[id_str] for id_str in topk_users]
-
+    #topk_users_ids = [user_id_map[id_str] for id_str in topk_users] #TODO user_id_maps sono in numero e tipo giusto ma valore sballato
+    topk_users_ids = topk_users
     return topk_users_ids
 
 
+def main():
+    # load embeddings and labels
+    print("loading embeddings...")
+    embeddings_news = load_embeddings(node_type="news", embeddings_dir=embeddings_dir)
+    labels_news = load_classes_politifact(node_type="news")
 
-# load embeddings and labels
-print("loading embeddings...")
-embeddings_news = load_embeddings(node_type="news", embeddings_dir=embeddings_dir)
-labels_news = load_classes_politifact(node_type="news")
+    embedding_user = load_embeddings(node_type="user", embeddings_dir=embeddings_dir)
+    labels_user = load_classes_politifact(node_type="user")
 
-embedding_user = load_embeddings(node_type="user", embeddings_dir=embeddings_dir)
-labels_user = load_classes_politifact(node_type="user")
+    '''
+    print("computing topk nodes and generating subset...")
+    # topk users aka indices to keep. Non interessa più l'ordinamento decrescente
+    topk_users_real = extract_topk_user_ids_by_label_politifact(k=topk, label="real")
+    topk_users_fake = extract_topk_user_ids_by_label_politifact(k=topk, label="fake")
+    topk_users_mixed = extract_topk_user_ids_by_label_politifact(k=topk, label="mixed")
+    topk_users = sorted(topk_users_real+topk_users_fake+topk_users_mixed)
 
-print("computing topk nodes and generating subset...")
-# topk users aka indices to keep. Non interessa più l'ordinamento decrescente
-topk_users_real = extract_topk_user_ids_by_label_politifact(k=topk, label="real")
-topk_users_fake = extract_topk_user_ids_by_label_politifact(k=topk, label="fake")
-topk_users_mixed = extract_topk_user_ids_by_label_politifact(k=topk, label="mixed")
-topk_users = sorted(topk_users_real+topk_users_fake+topk_users_mixed)
+    with open(os.path.join(base_dir, 'topk_users_labels.pkl'), 'wb') as file:
+        pickle.dump(topk_users, file)
+    '''
+    topk_users = open_pickle(os.path.join(base_dir, 'topk_users_labels.pkl'))
 
-# users subset
-embedding_user, labels_user = extract_embeddings_and_labels_subset(embeddings=embedding_user,
-                                                                   labels=labels_user,
-                                                                   ids_to_keep=topk_users)
+    print(max(topk_users), min(topk_users))
+    embedding_user, labels_user = extract_embeddings_and_labels_subset(embeddings=embedding_user,
+                                                                       labels=labels_user,
+                                                                       ids_to_keep=topk_users)
 
-print("umap & plot...")
-#umap
-umap_model = umap.UMAP(n_neighbors=n_neighbors, min_dist=min_dist, metric=metric)
+    print("umap & plot...")
+    #umap
+    umap_model = umap.UMAP(n_neighbors=n_neighbors, min_dist=min_dist, metric=metric)
 
-umap_embeddings_news = umap_model.fit_transform(embeddings_news)
-umap_embeddings_user = umap_model.fit_transform(embedding_user)
+    umap_embeddings_news = umap_model.fit_transform(embeddings_news)
+    umap_embeddings_user = umap_model.fit_transform(embedding_user)
 
-colors_news = np.array([color_map_news.get(label, default_color) for label in labels_news])  # Default to light gray if label not found
+    colors_news = np.array([color_map_news.get(label, default_color) for label in labels_news])  # Default to light gray if label not found
+    colors_user = np.array([color_map_user.get(label, default_color) for label in labels_user])
 
+    # Plotting
+    plt.figure(figsize=(12, 10))
 
-colors_user = np.array([color_map_user.get(label, default_color) for label in labels_user])
+    # Plot news embeddings (triangles)
+    plt.scatter(
+        umap_embeddings_news[:, 0], umap_embeddings_news[:, 1],
+        c=colors_news,
+        marker='^',  # Triangle marker
+        s=100,  # Size of the marker
+        edgecolor='k',  # Black edge for visibility
+        alpha=0.7
+    )
 
-# Plotting
-plt.figure(figsize=(12, 10))
+    # Plot user embeddings (circles)
+    plt.scatter(
+        umap_embeddings_user[:, 0], umap_embeddings_user[:, 1],
+        c=colors_user,
+        marker='o',  # Circle marker
+        s=50,  # Size of the marker
+        edgecolor='k',  # Black edge for visibility
+        alpha=0.7
+    )
 
-# Plot news embeddings (triangles)
-plt.scatter(
-    umap_embeddings_news[:, 0], umap_embeddings_news[:, 1],
-    c=colors_news,
-    marker='^',  # Triangle marker
-    s=50,  # Size of the marker
-    edgecolor='k',  # Black edge for visibility
-    alpha=0.7
-)
+    # Create a custom legend
+    handles = [
+        patches.Patch(color=real_color, label='Real (News & User)'),
+        patches.Patch(color=fake_color, label='Fake (News & User)'),
+        patches.Patch(color=mixed_color, label='Mixed (User Only)')
+    ]
+    plt.legend(handles=handles, loc='upper right', fontsize=12, title="Legend", title_fontsize=14)
 
-# Plot user embeddings (circles)
-plt.scatter(
-    umap_embeddings_user[:, 0], umap_embeddings_user[:, 1],
-    c=colors_user,
-    marker='o',  # Circle marker
-    s=50,  # Size of the marker
-    edgecolor='k',  # Black edge for visibility
-    alpha=0.7
-)
+    # Save the plot as a PDF file
+    plt.savefig(os.path.join(get_base_dir(), 'umap_embeddings.pdf'), format='pdf', bbox_inches='tight')
 
-# Create a custom legend
-handles = [
-    patches.Patch(color=real_color, label='Real (News & User)'),
-    patches.Patch(color=fake_color, label='Fake (News & User)'),
-    patches.Patch(color=mixed_color, label='Mixed (User Only)')
-]
-plt.legend(handles=handles, loc='upper right', fontsize=12, title="Legend", title_fontsize=14)
+    plt.show()
 
-# Save the plot as a PDF file
-plt.savefig(os.path.join(get_base_dir(), 'umap_embeddings.pdf'), format='pdf', bbox_inches='tight')
+if __name__ == "__main__":
+    main()
 
-plt.show()
-
-"""
-# Plotting
-plt.figure(figsize=(10, 8))
-plt.scatter(
-    umap_embeddings_news[:, 0], umap_embeddings_news[:, 1],
-    c=colors, #edgecolor='k', alpha=0.7
-    s=10
-)
-#plt.title('UMAP 2D Projection of Embeddings')
-#plt.xlabel('UMAP Dimension 1')
-#plt.ylabel('UMAP Dimension 2')
-
-# Create a custom legend
-handles = [
-    patches.Patch(color=real_color, label='Real'),
-    patches.Patch(color=fake_color, label='Fake')
-]
-plt.legend(handles=handles, loc='upper right', fontsize='20', title_fontsize='25')
-
-# Save the plot as a PDF file
-plt.savefig(os.path.join(get_base_dir(), 'umap_embeddings.pdf'), format='pdf', bbox_inches='tight')
-
-plt.show()
-"""

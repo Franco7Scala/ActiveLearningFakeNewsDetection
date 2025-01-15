@@ -10,8 +10,8 @@ from torch_geometric.utils import to_networkx
 from networkx.algorithms.community import greedy_modularity_communities, asyn_lpa_communities
 
 #from data_preprocessing.mumin import load_mumin_heterodata
-from data_preprocessing.politifact import load_politifact_heterodata
-from data_utils import open_pickle, get_base_dir
+from src.data_preprocessing.politifact import load_politifact_heterodata
+from src.data_utils import open_pickle, get_base_dir, save_dict_to_pickle
 
 
 def construct_user_graph(hetero_data):
@@ -92,19 +92,21 @@ def community_detection_louvain(user_graph, user_id_map, hetero_data):
     return df
 
 #  return a dictionary where each user maps to a tuple (true_claims, false_claims)
-def user_news_discussion_stats(hetero_data, k, target_type):
+def user_news_discussion_stats(hetero_data, target_type):
     news_to_tweet = hetero_data.edge_index_dict[(target_type, 'is_discussed_by', 'tweet')]
     tweet_to_user = hetero_data.edge_index_dict[('tweet', 'is_posted_by', 'user')]
     retweet_to_user = hetero_data.edge_index_dict[('tweet', 'is_retweeted_by', 'user')]
     tweet_to_user_combined = torch.cat([tweet_to_user, retweet_to_user], dim=1)
 
-    claim_labels = hetero_data[target_type].y
+    news_labels = hetero_data[target_type].y
 
-    user_stats = {}
+    num_users = hetero_data["user"].num_nodes
+    user_stats = {user: {'true': 0, 'false': 0} for user in range(num_users)}
+
 
     for i in range(news_to_tweet.size(1)):
-        claim, tweet = news_to_tweet[:, i]
-        news_label = claim_labels[claim].item()
+        news, tweet = news_to_tweet[:, i]
+        news_label = news_labels[news].item()
 
         user_indices = torch.where(tweet_to_user_combined[0] == tweet)[0]
         users = tweet_to_user_combined[1, user_indices]
@@ -124,13 +126,8 @@ def user_news_discussion_stats(hetero_data, k, target_type):
 
     sorted_users = sorted(user_stats_summary.items(), key=lambda x: x[1][2], reverse=True)
 
-    top_k_users = sorted_users[:k]
 
-    print(f"Top {k} users based on claims discussed:")
-    for user, (true_claims, false_claims, total_claims) in top_k_users:
-        print(f"User {user}: True Claims = {true_claims}, False Claims = {false_claims}, Total Claims = {total_claims}")
-
-    return top_k_users
+    return sorted_users
 
 
 def check_important_nodes_in_topk(important_nodes_id, topk_users_deg, topk_users_bet, topk_users_clo, topk_users_pag):
@@ -188,27 +185,28 @@ def topk_communities_analysis(df_communities, top_k_users, strategy):
     communities_with_multiple_topk.to_csv(os.path.join('out_dir', f'communities_with_multiple_topk_{strategy}.csv'), index=False)
 
 
-k = 100
 
-#important_node_ids = open_pickle(os.path.join(get_base_dir(), "selected_1_0_margin.pkl")) #last 100: [-100:]
-#important_node_ids = set(open_pickle(os.path.join(get_base_dir(), "selected_1_0_big_loss.pkl"))["user"]) #last 100: [-100:]
-#print(f"No. of users: {len(important_node_ids)}")
 
 
 """ LOAD/GENERATE GRAPHS """
+#print("Graph generation...")
 heterodata = load_politifact_heterodata()
 user_graph, user_id_map = construct_user_graph(heterodata)
 #print(user_graph)
 
 
 """ COMPUTE USER STATS wrt LABELS"""
-user_stats = user_news_discussion_stats(heterodata, target_type="news", k=k)
-# TODO: da salvare
+user_stats = user_news_discussion_stats(heterodata, target_type="news")
 
-out_dir = "/mnt/nas/martirano/politifact_cleaned/network_analysis"
+out_dir = get_base_dir()
+'''
+fname = "user_label_stats.pkl"
+save_dict_to_pickle(user_stats, os.path.join(out_dir, fname))
+'''
 
 """ COMMUNITY DETECTION """
 
+'''
 print("Performing community detection...")
 df = community_detection_louvain(user_graph, user_id_map, heterodata)
 df.to_csv(os.path.join(out_dir, 'user_communities_louvain.csv'), index=False)
@@ -216,7 +214,7 @@ df.to_csv(os.path.join(out_dir, 'user_communities_louvain.csv'), index=False)
 df = pd.read_csv(os.path.join(out_dir, 'user_communities_louvain.csv'))
 num_communities = df['community'].nunique()
 print(f"Number of communities detected: {num_communities} for {df.shape[0]} users")
-
+'''
 
 """ COMPUTE CENTRALITY MEASURES AND TOP-k NODES"""
 
@@ -244,21 +242,33 @@ topk_closeness = get_topk_centrality_nodes(user_graph, user_id_map, 50, "closene
 df_closeness = pd.DataFrame(list(topk_closeness.items()), columns=['user_id', 'closeness_centrality_score'])
 df_closeness.to_csv(os.path.join(out_dir, 'user_closeness_centrality.csv'), index=False)
 print(df_closeness.head())
+'''
+'''
+k = 10000 # int(len(all_users)*0.1) #100, 1000
 
-df_deg = pd.read_csv(os.path.join(out_dir, 'user_degree_centrality.csv'))
+df_deg = pd.read_csv(os.path.join(out_dir, "network_analysis", 'user_degree_centrality.csv'))
 top_k_users_deg = set(df_deg.nlargest(k, 'degree_centrality_score')['user_id'])
 
-df_pag = pd.read_csv(os.path.join(out_dir, 'user_pagerank.csv'))
+df_pag = pd.read_csv(os.path.join(out_dir, "network_analysis", 'user_pagerank.csv'))
 top_k_users_pag = set(df_pag.nlargest(k, 'pagerank_score')['user_id'])
 
-df_bet = pd.read_csv(os.path.join(out_dir, 'user_betweenness_centrality.csv'))
+df_bet = pd.read_csv(os.path.join(out_dir, "network_analysis", 'user_betweenness_centrality.csv'))
 top_k_users_bet = set(df_bet.nlargest(k, 'betweenness_centrality_score')['user_id'])
 
-df_clo = pd.read_csv(os.path.join(out_dir, 'user_closeness_centrality.csv'))
+df_clo = pd.read_csv(os.path.join(out_dir, "network_analysis", 'user_closeness_centrality.csv'))
 top_k_users_clo = set(df_clo.nlargest(k, 'closeness_centrality_score')['user_id'])
 
 common_top_k = top_k_users_deg & top_k_users_pag & top_k_users_bet & top_k_users_clo
-print(f"Users common across all top k sets: {common_top_k}")
+print(f"Users common across all top k sets: {len(common_top_k)}")
+
+#important_node_ids = open_pickle(os.path.join(get_base_dir(), "selected_1_0_margin.pkl")) #last 100: [-100:]
+all_users = open_pickle(os.path.join(get_base_dir(), "selected_1_0_margin_politifact.pkl"))["user"]
+print(f"No. of users: {len(all_users)}")
+node_ids_AL_margin = set(open_pickle(os.path.join(get_base_dir(), "selected_1_0_margin_politifact.pkl"))["user"][:k]) #topo k: [:k], last k: [-k:]
+node_ids_AL_entropy = set(open_pickle(os.path.join(get_base_dir(), "selected_1_0_entropy_politifact.pkl"))["user"][:k])
+node_ids_lc = set(open_pickle(os.path.join(get_base_dir(), "selected_1_0_leastconfidence_politifact.pkl"))["user"][:k])
+common_top_k_AL = node_ids_AL_entropy & node_ids_AL_margin & node_ids_AL_margin
+print(f"Users common across all top k sets (AL): {len(common_top_k_AL)}")
 '''
 
 
