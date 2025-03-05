@@ -10,7 +10,7 @@ from torch_geometric.utils import to_networkx
 from networkx.algorithms.community import greedy_modularity_communities, asyn_lpa_communities
 
 #from data_preprocessing.mumin import load_mumin_heterodata
-from src.data_preprocessing.politifact import load_politifact_heterodata
+from src.data_loading.politifact import load_politifact_heterodata
 from src.data_utils import open_pickle, get_base_dir, save_dict_to_pickle
 #from src.network_analysis.plot_users import user_stats
 

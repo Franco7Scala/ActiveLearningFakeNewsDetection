@@ -9,7 +9,7 @@ from src.al_techniques.entropy_al_technique import EntropyALTechnique
 from src.al_techniques.lcs_al_technique import LCSALTechnique
 from src.al_techniques.margin_al_technique import MarginALTechnique
 from src.al_techniques.random_al_technique import RandomALTechnique
-from src.data_preprocessing.politifact import load_politifact_heterodata
+from src.data_loading.politifact import load_politifact_heterodata
 from src.models.GAT_enhanced import GAT_enhanced
 from src.sampling_strategies.active_ers2 import ActiveERS2
 from src.utils import set_random_seed, training_seeds, processing_results, compute_weights, cprint, Color
@@ -34,7 +34,7 @@ training_strategy = ActiveERS2
 device = utils.get_device()
 
 cprint(f"Building dataset...", Color.EXPERIMENT_STATUS_HIGH_PRIORITY)
-data = load_politifact_heterodata()
+data = load_politifact_heterodata(get_base_dir())
 
 target_type = "news" #get_target_type(dataset_name)
 num_classes = len(torch.unique(data[target_type].y))

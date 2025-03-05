@@ -8,7 +8,7 @@ import umap
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
-from src.data_preprocessing.politifact import load_politifact_heterodata
+from src.data_loading.politifact import load_politifact_heterodata
 from src.data_utils import get_base_dir, open_pickle
 from src.network_analysis.important_nodes_analysis_v2 import construct_user_graph
 from src.network_analysis.topk_users_stats import base_dir

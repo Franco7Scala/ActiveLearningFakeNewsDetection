@@ -4,7 +4,7 @@ import torch
 import networkx as nx
 from torch_geometric.utils import to_networkx
 
-from src.data_preprocessing.politifact import load_politifact_heterodata
+from src.data_loading.politifact import load_politifact_heterodata
 from src.data_utils import get_base_dir, save_dict_to_pickle
 
 
