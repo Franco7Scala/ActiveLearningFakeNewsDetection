@@ -5,7 +5,7 @@ from src.data_utils import get_base_dir, open_pickle, save_dict_to_pickle
 
 base_dir = get_base_dir()
 no_of_parts = 10
-k_small_set = 1000
+k_small_set = 100
 #all_users =
 #k_big_set = #int(len(all_users)*0.1) #100, 1000, 10000
 
@@ -47,36 +47,36 @@ all_users = open_pickle(os.path.join(base_dir, "selected_1_0_margin_politifact.p
 print(f"No. of users: {len(all_users)}")
 
 df_deg = pd.read_csv(os.path.join(base_dir, "network_analysis", 'user_degree_centrality.csv'))
-top_k_users_deg_small = set(df_deg.nlargest(k_small_set, 'degree_centrality_score')['user_id'])
-top_k_users_deg_big = set(df_deg.sort_values(by='degree_centrality_score', ascending=False)['user_id'])
+top_k_users_deg_small = list(df_deg.nlargest(k_small_set, 'degree_centrality_score')['user_id'])
+top_k_users_deg_big = list(df_deg.sort_values(by=['degree_centrality_score'], ascending=False)['user_id'])
 
 df_pag = pd.read_csv(os.path.join(base_dir, "network_analysis", 'user_pagerank.csv'))
-top_k_users_pag_small = set(df_pag.nlargest(k_small_set, 'pagerank_score')['user_id'])
-top_k_users_pag_big = set(df_pag.sort_values(by='pagerank_score', ascending=False)['user_id'])
+top_k_users_pag_small = list(df_pag.nlargest(k_small_set, 'pagerank_score')['user_id'])
+top_k_users_pag_big = list(df_pag.sort_values(by=['pagerank_score'], ascending=False)['user_id'])
 
 df_bet = pd.read_csv(os.path.join(base_dir, "network_analysis", 'user_betweenness_centrality.csv'))
-top_k_users_bet_small = set(df_bet.nlargest(k_small_set, 'betweenness_centrality_score')['user_id'])
-top_k_users_bet_big = set(df_bet.sort_values(by='betweenness_centrality_score', ascending=False)['user_id'])
+top_k_users_bet_small = list(df_bet.nlargest(k_small_set, 'betweenness_centrality_score')['user_id'])
+top_k_users_bet_big = list(df_bet.sort_values(by=['betweenness_centrality_score'], ascending=False)['user_id'])
 
 df_clo = pd.read_csv(os.path.join(base_dir, "network_analysis", 'user_closeness_centrality.csv'))
-top_k_users_clo_small = set(df_clo.nlargest(k_small_set, 'closeness_centrality_score')['user_id'])
-top_k_users_clo_big = set(df_clo.sort_values(by='closeness_centrality_score', ascending=False)['user_id'])
+top_k_users_clo_small = list(df_clo.nlargest(k_small_set, 'closeness_centrality_score')['user_id'])
+top_k_users_clo_big = list(df_clo.sort_values(by=['closeness_centrality_score'], ascending=False)['user_id'])
 
-node_ids_AL_margin = set(open_pickle(os.path.join(base_dir, "selected_1_0_margin_politifact.pkl"))["user"]) #top k: [:k], last k: [-k:]
-node_ids_AL_entropy = set(open_pickle(os.path.join(base_dir, "selected_1_0_entropy_politifact.pkl"))["user"])
-node_ids_lc = set(open_pickle(os.path.join(base_dir, "selected_1_0_leastconfidence_politifact.pkl"))["user"])
+node_ids_AL_margin = list(open_pickle(os.path.join(base_dir, "selected_1_0_margin_politifact.pkl"))["user"]) #top k: [:k], last k: [-k:]
+node_ids_AL_entropy = list(open_pickle(os.path.join(base_dir, "selected_1_0_entropy_politifact.pkl"))["user"])
+node_ids_lc = list(open_pickle(os.path.join(base_dir, "selected_1_0_leastconfidence_politifact.pkl"))["user"])
 
 top_k_users_margin_big = node_ids_AL_margin #[:k_big_set]
 #worst_k_users_margin_big = node_ids_AL_margin[-k_big_set:]
-top_k_users_margin_small = list(node_ids_AL_margin)[:k_small_set]
+top_k_users_margin_small = node_ids_AL_margin[:k_small_set]
 
 topk_users_entropy_big = node_ids_AL_entropy #[:k_big_set]
 #worst_k_users_entropy_big = node_ids_AL_entropy[-k_big_set:]
-topk_users_entropy_small = list(node_ids_AL_entropy)[:k_small_set]
+topk_users_entropy_small = node_ids_AL_entropy[:k_small_set]
 
 topk_users_lc_big = node_ids_lc #[:k_big_set]
 #worst_k_users_lc = node_ids_lc[-k_big_set:]
-topk_users_lc_small = list(node_ids_lc)[:k_small_set]
+topk_users_lc_small = node_ids_lc[:k_small_set]
 
 centrality_small = [top_k_users_deg_small, top_k_users_bet_small, top_k_users_clo_small, top_k_users_pag_small]
 centrality_big = [top_k_users_deg_big, top_k_users_bet_big,top_k_users_clo_big, top_k_users_pag_big]

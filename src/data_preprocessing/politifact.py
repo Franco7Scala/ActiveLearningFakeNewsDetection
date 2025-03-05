@@ -9,6 +9,7 @@ from sklearn.preprocessing import MinMaxScaler
 from sklearn.decomposition import PCA
 import hdbscan #from paper "Accelerated Hierarchical Density Based Clustering"
 import re
+import ast
 
 from torch_geometric.data import HeteroData
 from torch_geometric.transforms import AddMetaPaths
@@ -19,13 +20,13 @@ from src.utils import get_device
 
 from src.data_utils import get_base_dir, get_sparse_eye, learnable_embedding
 
-#import emoji
-
-#dir_base = '/mnt/nas/guarascio/fakenews_datasets/Politifact/politifact_in_mumin_format/'
-#output_dir = "/mnt/nas/martirano/politifact_cleaned"
+import emoji
 
 dir_base = '/mnt/nas/guarascio/fakenews_datasets/Politifact/politifact_in_mumin_format/'
-output_dir = "/home/scala/projects/GNN_ContinualLerning/data/politifact/"
+output_dir = "/mnt/nas/martirano/politifact_cleaned"
+
+#dir_base = '/mnt/nas/guarascio/fakenews_datasets/Politifact/politifact_in_mumin_format/'
+#output_dir = "/home/scala/projects/GNN_ContinualLerning/data/politifact/"
 
 def count_nan_or_empty(series):
     #return series.apply(lambda x: pd.isna(x) or (isinstance(x, list) and len(x) == 0)).sum()
@@ -152,15 +153,46 @@ def clean_text(text):
     text = re.sub('https?://\S+|www\.\S+', '', text)  # url
     text = re.sub('#', '', text)  # hashtags
     #text = emoji.replace_emoji(text, replace='') #emoji
+    text = emoji.demojize(text)
     return text
 
-
-def safe_tensor_conversion(x):
-    try:
+""" OLD 
+def safe_tensor_conversion(x, dim):
+    if isinstance(x, torch.Tensor):
         return torch.tensor(x, dtype=torch.float32)
-    except TypeError:
-        print(f"Skipping non-numeric value: {x}")
-        return torch.tensor(0.0, dtype=torch.float32)
+    if isinstance(x, str):
+        x = np.fromstring(x.strip('[]'), sep=' ')
+        return torch.tensor(x, dtype=torch.float32)
+    if pd.isna(x):
+        return torch.zeros(dim, dtype=torch.float32)
+    else:
+        return torch.zeros(dim, dtype=torch.float32)
+"""
+
+""" NEW """
+def safe_tensor_conversion(x, dim):
+    if isinstance(x, torch.Tensor):
+        return torch.tensor(x, dtype=torch.float32)
+    if isinstance(x, str):
+        x = np.fromstring(x.strip('[]'), sep=' ')
+        return torch.tensor(x, dtype=torch.float32)
+    if isinstance(x, np.ndarray):
+        # Handle NaN arrays explicitly
+        if np.isnan(x).all():  # Check if all elements are NaN
+            return torch.zeros(dim, dtype=torch.float32)
+        else:
+            return torch.tensor(x, dtype=torch.float32)
+    if isinstance(x, list):
+        x = np.array(x, dtype=np.float32)
+        if np.isnan(x).all():
+            return torch.zeros(dim, dtype=torch.float32)
+        return torch.tensor(x, dtype=torch.float32)
+    if pd.isna(x):  # Check for scalar NaN
+        return torch.zeros(dim, dtype=torch.float32)
+    else:
+        return torch.zeros(dim, dtype=torch.float32)
+
+
 
 def encoding_attributes(df):
     tensors = []
@@ -172,8 +204,10 @@ def encoding_attributes(df):
             tensors.append(torch.tensor(df[col].values, dtype=torch.float32).unsqueeze(1))
         elif df[col].dtype == 'bool':
             tensors.append(torch.tensor(df[col].values, dtype=torch.bool).unsqueeze(1))
-        elif df[col].dtype == 'object':
-            embedding_tensors = df[col].apply(lambda x: safe_tensor_conversion(x) if not isinstance(x, torch.Tensor) else x)
+        elif df[col].dtype == 'object': #per le colonne con gli embedding
+            first_element = df[col].dropna().iloc[0]
+            dim = len(first_element) if isinstance(first_element, list) else np.fromstring(first_element.strip('[]'), sep=' ').shape[0] #str
+            embedding_tensors = df[col].apply(lambda x: safe_tensor_conversion(x,dim) if not isinstance(x, torch.Tensor) else x)
             embedding_stack = torch.stack(embedding_tensors.tolist())  # Convert to list before stacking
             tensors.append(embedding_stack)
         elif df[col].dtype == 'category':
@@ -199,25 +233,22 @@ def edges_rev_encoding(df):
 '''
 df_N = pd.read_csv(os.path.join(dir_base, 'news_politifact.csv'))
 df_N_ok = drop_columns_with_many_nans(df_N)
-print(df_N_ok.shape)
 df_N_ok = drop_columns_starting_with(df_N_ok, 'meta_data')
-print(df_N_ok.shape)
-df_N_ok['base_source'] = df_N_ok["source"].apply(lambda x: extract_base_source_news(x) if pd.notna(x) else "unknown")
-df_N_ok.drop(columns=["images", "top_img", "url", "source", "canonical_link"], index=1, inplace=True)
-print(df_N_ok.shape)
-print(df_N_ok.columns)
-df_N_ok.to_csv(os.path.join(output_dir, "original_data", "nodes", "news.csv"), index=False)
+#df_N_ok['base_source'] = df_N_ok["source"].apply(lambda x: extract_base_source_news(x) if pd.notna(x) else "unknown")
+#df_N_ok.drop(columns=["images", "top_img", "url", "canonical_link"], index=1, inplace=True)
+df_N_ok.to_csv(os.path.join(output_dir, "original_data", "nodes", "news.csv"), index=False) #NEW: text, title, news_id, label, base_source, embedding
 '''
+
 '''
 print("processing NEWS nodes")
 df_N = pd.read_csv(os.path.join(output_dir, "original_data", "nodes", "news.csv"))
-print("Encoding text...")
-df_N = encoding_short_text(df_N, "text", target_dim=256)
+#print("Encoding text...")
+#df_N = encoding_short_text(df_N, "text", target_dim=256)
 print("Encoding title...")
 df_N = encoding_short_text(df_N, "title", target_dim=128)
 print("Encoding source...")
 df_N = encoding_short_text(df_N, "base_source", target_dim=64)
-NX = encoding_attributes(df_N[['title_encoded', 'text_encoded', 'base_source_encoded']].copy())
+NX = encoding_attributes(df_N[['title_encoded', 'embedding', 'base_source_encoded']].copy()) #'text_encoded'
 print(NX.shape)
 torch.save(NX, os.path.join(output_dir, "heterodata", "features", "NX_tensor.pt"))
 N_labels = label_encoding(df_N, 'label').tolist()
@@ -227,17 +258,16 @@ torch.save(NY, os.path.join(output_dir, "heterodata", "NY_tensor.pt"))
 
 """ USER """
 '''
-df_U = pd.read_csv(os.path.join(dir_base, 'user_politifact.csv'))
-df_U_ok = drop_columns_with_many_nans(df_U)
-print(df_U_ok.shape)
-df_U_ok.drop(columns=["is_translation_enabled", "screen_name"], index=1, inplace=True)
-print(df_U_ok.shape)
-print(df_U_ok.columns)
-df_U_ok.to_csv(os.path.join(output_dir, "original_data", "nodes", "user.csv"), index=False)
+df_U = pd.read_csv(os.path.join(dir_base, 'user_with_timeline_embedding_politifact.csv'))#df_U = pd.read_csv(os.path.join(dir_base, 'user_politifact.csv'))
+df_U2 = drop_columns_with_many_nans(df_U)
+df_U3 = df_U2.drop(columns=["is_translation_enabled", "screen_name"])
+df_U3.to_csv(os.path.join(output_dir, "original_data", "nodes", "user.csv"), index=False) #NEW: user_id, location, description, protected, followers_count, friends_count, listed_count,
+print(df_U3.shape)
+#listed_count, favourites_count, created_at, verified, statuses_count, has_extended_profile, default_profile, default_profile_image,
 '''
 '''
 print("Processing USER nodes")
-df_U = pd.read_csv(os.path.join(output_dir, "original_data", "nodes", "user.csv"))
+df_U = pd.read_csv(os.path.join(output_dir, "original_data", "nodes", "user.csv"), dtype={'embedding': str})
 print("Encoding location...")
 df_U = encoding_short_text(df_U, "location", target_dim=128)
 print("Encoding description...")
@@ -248,7 +278,8 @@ df_U = scale_numeric(df_U, 'listed_count')
 df_U = scale_numeric(df_U, 'favourites_count')
 df_U = scale_numeric(df_U, 'statuses_count')
 df_U = scale_numeric(df_U, 'created_at')
-UX = encoding_attributes(df_U)
+df_U_ok = df_U.drop(columns=["user_id"])
+UX = encoding_attributes(df_U_ok)
 print(UX.shape)
 torch.save(UX, os.path.join(output_dir, "heterodata", "features", "UX_tensor.pt"))
 '''
@@ -263,7 +294,7 @@ df_H.to_csv(os.path.join(output_dir, "original_data", "nodes", "hashtag.csv"), i
 '''
 df_H = pd.read_csv(os.path.join(output_dir, "original_data", "nodes", "hashtag.csv"))
 print("Encoding texts...")
-df_H = encoding_short_text(df_H, "hashtag", target_dim=128)
+df_H = encoding_short_text(df_H, "hashtag", target_dim=256)
 print("Performing clustering...")
 df_H = clustering(df_H, "hashtag_encoded")
 num_clusters = df_H['cluster_label'].unique().shape[0]-1
@@ -278,69 +309,83 @@ torch.save(HX, os.path.join(output_dir, "heterodata", "features", "HX_tensor.pt"
 
 """ TWEET """
 '''
-#df_T_ok = pd.read_csv(os.path.join(dir_base, 'tweet_embedding_politifact_with_bot.csv'))
-df_T_ok = pd.read_csv(os.path.join("/mnt/nas/scala", "tweet_embedding_politifact_with_bot.csv"))
-#print(df_T_ok.shape)
-df_T_ok = drop_columns_with_many_nans(df_T_ok)
-#print(df_T_ok.shape)
-df_T_ok2 = df_T_ok.drop(columns=["source", "Unnamed: 0"])
-df_T_ok2.to_csv(os.path.join(output_dir, "original_data", "nodes", "tweet.csv"), index=False)
-#print(df_T_ok.colum)
+df_T = pd.read_csv(os.path.join(dir_base, 'tweet_politifact.csv'))
+df_T = drop_columns_with_many_nans(df_T)
+df_T_bot = pd.read_csv(os.path.join("/mnt/nas/scala", "tweet_embedding_politifact_with_bot.csv"))[['tweet_id', 'bot_generated']]
+df_T_ok = df_T.merge(df_T_bot, on="tweet_id", how="left")
+df_T_ok.drop(columns=["source"], axis=1, inplace=True)
+print(df_T_ok.shape)
+df_T_ok.to_csv(os.path.join(output_dir, "original_data", "nodes", "tweet.csv"), index=False)
 '''
 '''
 print("Processing TWEET nodes")
 
 df_T = pd.read_csv(os.path.join(output_dir, "original_data", "nodes", "tweet.csv"))
 print(df_T.shape)
-df_T["text_emb_twhin_bert_base"] = df_T["text_emb_twhin_bert_base"].apply(convert_to_tensor)
-df_T.drop(columns = ["text"], axis=1, inplace=True)
+df_T.drop(columns = ["text", "tweet_id"], axis=1, inplace=True)
 #df_T = encoding_short_text(df_T, "text", target_dim=384)
 df_T['lang'] = df_T['lang'].astype('category')
 df_T = scale_numeric(df_T, 'created_at')
 df_T = scale_numeric(df_T, 'retweet_count')
 df_T = scale_numeric(df_T, 'favorite_count')
-print(df_T.columns)
 TX = encoding_attributes(df_T)
 print(TX.shape)
-torch.save(TX, os.path.join(output_dir, "heterodata", "features", "TX_tensor_v2.pt"))
+torch.save(TX, os.path.join(output_dir, "heterodata", "features", "TX_tensor.pt"))
 '''
+
 
 """ EDGES """
 
+def copy_edges(fname_in, fname_out):
+    df = pd.read_csv(os.path.join(dir_base, fname_in))
+    print(f"{df.shape[0]} edges in {fname_out}")
+    df.to_csv(os.path.join(output_dir, fname_out), index=False)
 
 
 def convert_edges_to_tensors(in_fname, out_fname1, out_fname2):
     df = pd.read_csv(os.path.join(output_dir, "original_data", "edges", in_fname))
+    df = df[["src", "tgt"]].copy()
     tensor = edges_encoding(df)
     tensor_rev = edges_rev_encoding(df)
     torch.save(tensor, os.path.join(output_dir, "heterodata", "edgelists", out_fname1))
     torch.save(tensor_rev, os.path.join(output_dir, "heterodata", "edgelists", out_fname2))
 
 
-# convert_edges_to_tensors("tweet_discusses_news.csv", "tweet_discusses_news.pt", "news_is_discussed_by_tweet.pt")
-# convert_edges_to_tensors("tweet_has_hashtag_hashtag.csv", "tweet_has_hashtag_hashtag.pt","hashtag_is_hashtag_of_tweet.pt")
-# convert_edges_to_tensors("user_posted_tweet.csv", "user_posted_tweet.pt", "tweet_is_posted_by_user.pt")
-# convert_edges_to_tensors("user_retweeted_tweet.csv", "user_retweeted_tweet.pt", "tweet_is_retweeted_by_user.pt")
-# convert_edges_to_tensors("user_mentions_user.csv", "user_mentions_user.pt", "user_is_mentioned_by_user.pt")
+"""
+copy_edges("tweet_discusses_news_id_politifact.csv", "tweet_discusses_news.csv")
+"""
+#copy_edges("user_posted_tweet_id_politifact.csv", "user_posted_tweet.csv")
+"""
+copy_edges("user_retweeted_tweet_id_politifact.csv", "user_retweeted_tweet.csv")
+copy_edges("user_mentions_user_id_politifact.csv", "user_mentions_user.csv")
+copy_edges("tweet_has_hashtag_id_politifact.csv", "tweet_has_hashtag_hashtag.csv")
 
+convert_edges_to_tensors("tweet_discusses_news.csv", "tweet_discusses_news.pt", "news_is_discussed_by_tweet.pt")
+convert_edges_to_tensors("tweet_has_hashtag_hashtag.csv", "tweet_has_hashtag_hashtag.pt","hashtag_is_hashtag_of_tweet.pt")
+convert_edges_to_tensors("user_posted_tweet.csv", "user_posted_tweet.pt", "tweet_is_posted_by_user.pt")
+convert_edges_to_tensors("user_retweeted_tweet.csv", "user_retweeted_tweet.pt", "tweet_is_retweeted_by_user.pt")
+convert_edges_to_tensors("user_mentions_user.csv", "user_mentions_user.pt", "user_is_mentioned_by_user.pt")
+"""
 
 
 
 """ Applying PCA"""
 
-#dim = 128
+
+dim = 256
 '''
 NX = torch.load(os.path.join(output_dir, "heterodata", "features", "NX_tensor.pt"))
 pca_news = PCA(n_components=dim).fit(NX)
 torch.save(torch.tensor(pca_news.transform(NX)).float(), os.path.join(output_dir, "heterodata", "features", f"NX_{dim}_tensor.pt"))
 
-TX = torch.load(os.path.join(output_dir, "heterodata", "features", "TX_tensor_v2.pt"))
+TX = torch.load(os.path.join(output_dir, "heterodata", "features", "TX_tensor.pt"))
 pca_tweet = PCA(n_components=dim).fit(TX)
-torch.save(torch.tensor(pca_tweet.transform(TX)).float(), os.path.join(output_dir, "heterodata", "features", f"TX_{dim}_tensor_v2.pt"))
+torch.save(torch.tensor(pca_tweet.transform(TX)).float(), os.path.join(output_dir, "heterodata", "features", f"TX_{dim}_tensor.pt"))
 
 UX = torch.load(os.path.join(output_dir, "heterodata", "features", "UX_tensor.pt"))
 pca_user = PCA(n_components=dim).fit(UX)
 torch.save(torch.tensor(pca_user.transform(UX)).float(), os.path.join(output_dir, "heterodata", "features", f"UX_{dim}_tensor.pt"))
+print("Done")
 
 HX = torch.load(os.path.join(output_dir, "heterodata", "features", "HX_tensor.pt"))
 pca_hashtag = PCA(n_components=dim).fit(HX)
@@ -386,7 +431,7 @@ def load_politifact_heterodata():
 
     # Load node features
 
-    dim = 128
+    dim = 256
 
 
     NX = torch.load(os.path.join(nodes_dir, 'NX_'+str(dim)+'_tensor.pt'))
@@ -451,42 +496,36 @@ def load_politifact_heterodata():
     data['user', 'is_mentioned_by', 'user'].edge_index = UU_rev_tensor
 
 
-    # Add metapaths # CTUTC, CTHTC
-
     metapaths = [
-                [('user', 'retweeted', 'tweet'),
-                 ('tweet', 'is_posted_by', 'user')],
-                [('news', 'is_discussed_by', 'tweet'),
-                ('tweet', 'is_posted_by', 'user'),
-                ('user', 'posted', 'tweet'),
-                ('tweet', 'discusses', 'news')],  # NTUTN
-                [('news', 'is_discussed_by', 'tweet'),
-                ('tweet', 'has_hashtag', 'hashtag'),
-                ('hashtag', 'is_hashtag_of', 'tweet'),
-                ('tweet', 'discusses', 'news')],  # NTHTN
-                [('news', 'is_discussed_by', 'tweet'),
-                ('tweet', 'is_posted_by', 'user'),
-                ('user', 'retweeted', 'tweet'),
-                ('tweet', 'discusses', 'news')] #NTHN_ret
-                ]
+        [('user', 'retweeted', 'tweet'),
+        ('tweet', 'is_posted_by', 'user')]
+    ]
+    """[('user', 'posted', 'tweet'),
+             ('tweet', 'has_hashtag', 'hashtag'),
+             ('hashtag', 'is_hashtag_of', 'tweet'),
+             ('tweet', 'is_posted_by', 'user')],
+            [('user', 'posted', 'tweet'),
+             ('tweet', 'discusses', 'news'),
+             ('news', 'is_discussed_by', 'tweet'),
+             ('tweet', 'is_posted_by', 'user')]"""
 
-    '''metapaths = [[('claim', 'is_discussed_by', 'tweet'),
-                      ('tweet', 'is_posted_by', 'user'),
-                      ('user', 'posted', 'tweet'),
-                      ('tweet', 'discusses', 'claim')],  # CTUTC
-                     [('claim', 'is_discussed_by', 'tweet'),
-                      ('tweet', 'has_hashtag', 'hashtag'),
-                      ('hashtag', 'is_hashtag_of', 'tweet'),
-                      ('tweet', 'discusses', 'claim')],  # CTHTC
-                     [('claim', 'is_discussed_by', 'tweet'),
-                      ('tweet', 'is_replied_by', 'reply'),
-                      ('reply', 'reply_to', 'tweet'),
-                      ('tweet', 'discusses', 'claim')],  # CTRTC_r
-                     [('claim', 'is_discussed_by', 'tweet'),
-                      ('tweet', 'is_quoted_by', 'reply'),
-                      ('reply', 'quote_of', 'tweet'),
-                      ('tweet', 'discusses', 'claim')]]'''  # CTRTC_q
-
+    """
+    metapaths = [
+        [('news', 'is_discussed_by', 'tweet'),
+         ('tweet', 'is_posted_by', 'user'),
+         ('user', 'posted', 'tweet'),
+         ('tweet', 'discusses', 'news')],  # NTUTN
+        [('news', 'is_discussed_by', 'tweet'),
+         ('tweet', 'has_hashtag', 'hashtag'),
+         ('hashtag', 'is_hashtag_of', 'tweet'),
+         ('tweet', 'discusses', 'news')],  # NTHTN
+        [('news', 'is_discussed_by', 'tweet'),
+         ('tweet', 'is_posted_by', 'user'),
+         ('user', 'mentions', 'user'),
+         ('user', 'posted', 'tweet'),
+         ('tweet', 'discusses', 'news')]
+    ]
+    """
 
     data = AddMetaPaths(metapaths, weighted=True)(data)
 
@@ -502,13 +541,13 @@ def load_politifact_heterodata():
 
 
 
-    data = data.to(get_device())
+    #data = data.to(get_device())
 
     return data
 
 
-#data = load_politifact_heterodata()
-#print(data)
+data = load_politifact_heterodata()
+print(data)
 
 """
 print(torch.min(data['tweet', 'discusses', 'news'].edge_index, dim=1).values)
@@ -526,12 +565,12 @@ print(torch.max(data['user', 'mentions', 'user'].edge_index, dim=1).values)
 
 #create_mapping()
 
-'''
-mappingN = open_pickle(os.path.join(output_dir, "heterodata", "mappingN.pkl"))
-mappingT = open_pickle(os.path.join(output_dir, "heterodata", "mappingT.pkl"))
-mappingU = open_pickle(os.path.join(output_dir, "heterodata", "mappingU.pkl"))
-mappingH = open_pickle(os.path.join(output_dir, "heterodata", "mappingH.pkl"))
-'''
+
+#mappingN = open_pickle(os.path.join(output_dir, "heterodata", "mappingN.pkl"))
+#mappingT = open_pickle(os.path.join(output_dir, "heterodata", "mappingT.pkl"))
+#mappingU = open_pickle(os.path.join(output_dir, "heterodata", "mappingU.pkl"))
+#mappingH = open_pickle(os.path.join(output_dir, "heterodata", "mappingH.pkl"))
+
 
 
 def remapping_edges(fname_in, fname_out, src_col, tgt_col, src_mapping, tgt_mapping):
@@ -545,10 +584,9 @@ def remapping_edges(fname_in, fname_out, src_col, tgt_col, src_mapping, tgt_mapp
     #df['tgt'].replace(tgt_mapping, inplace=True)
     df.to_csv(os.path.join(output_dir, "original_data", "edges", fname_out), index=False)
 
-'''
-remapping_edges(fname_in="tweet_discusses_news_politifact.csv", fname_out="tweet_discusses_news.csv", src_col="tweet_id", tgt_col="news_id", src_mapping=mappingT, tgt_mapping=mappingN)
-remapping_edges(fname_in="tweet_has_hashtag_politifact.csv", fname_out="tweet_has_hashtag_hashtag.csv", src_col="tweet_id", tgt_col="hashtag_id", src_mapping=mappingT, tgt_mapping=mappingH)
-remapping_edges(fname_in="user_posted_tweet_politifact.csv", fname_out="user_posted_tweet.csv", src_col="user_id", tgt_col="tweet_id", src_mapping=mappingU, tgt_mapping=mappingT)
-remapping_edges(fname_in="user_retweeted_tweet_politifact.csv", fname_out="user_retweeted_tweet.csv", src_col="user_id", tgt_col="tweet_id", src_mapping=mappingU, tgt_mapping=mappingT)
-remapping_edges(fname_in="user_mentions_user_politifact.csv", fname_out="user_mentions_user.csv", src_col="user_id", tgt_col="mentioned_user_id", src_mapping=mappingU, tgt_mapping=mappingU)
-'''
+
+#remapping_edges(fname_in="tweet_discusses_news_politifact.csv", fname_out="tweet_discusses_news.csv", src_col="tweet_id", tgt_col="news_id", src_mapping=mappingT, tgt_mapping=mappingN)
+#remapping_edges(fname_in="tweet_has_hashtag_politifact.csv", fname_out="tweet_has_hashtag_hashtag.csv", src_col="tweet_id", tgt_col="hashtag_id", src_mapping=mappingT, tgt_mapping=mappingH)
+#remapping_edges(fname_in="user_posted_tweet_politifact.csv", fname_out="user_posted_tweet.csv", src_col="user_id", tgt_col="tweet_id", src_mapping=mappingU, tgt_mapping=mappingT)
+#remapping_edges(fname_in="user_retweeted_tweet_politifact.csv", fname_out="user_retweeted_tweet.csv", src_col="user_id", tgt_col="tweet_id", src_mapping=mappingU, tgt_mapping=mappingT)
+#remapping_edges(fname_in="user_mentions_user_politifact.csv", fname_out="user_mentions_user.csv", src_col="user_id", tgt_col="mentioned_user_id", src_mapping=mappingU, tgt_mapping=mappingU)

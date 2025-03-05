@@ -5,6 +5,7 @@ import os
 import time
 import numpy
 import pandas as pd
+import pickle
 from statistics import stdev
 from enum import Enum
 
@@ -19,11 +20,35 @@ class Color(Enum):
     BLACK = 8
 
 
-training_seeds = [123123, 34534534, 21312312, 67678678, 234234234]
+#training_seeds = [123123, 34534534, 21312312, 67678678, 234234234]
+training_seeds = [42, 123, 12345, 123123, 2025]
+
+
+def set_random_seed(seed):
+    numpy.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = True
 
 
 def get_device():
-    return torch.device("cuda:1" if torch.cuda.is_available() else "cpu") #"cpu"#
+    return torch.device("cuda" if torch.cuda.is_available() else "cpu") #"cpu"#
+
+
+def get_base_dir():
+    return '/mnt/nas/martirano/mumin'
+    #return '/mnt/nas/martirano/politifact_cleaned'
+
+
+def load_from_pickle(pckl_file):
+    file = open(pckl_file, 'rb')
+    return pickle.load(file)
+
+
+def save_to_pickle(data_dict, pckl_file):
+    with open(pckl_file, 'wb') as file:
+        pickle.dump(data_dict, file)
 
 
 """
@@ -94,9 +119,4 @@ def get_time_in_millis():
     return int(round(time.time() * 1000))
 
 
-def set_random_seed(seed):
-    numpy.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = True
+

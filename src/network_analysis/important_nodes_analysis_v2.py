@@ -12,6 +12,7 @@ from networkx.algorithms.community import greedy_modularity_communities, asyn_lp
 #from data_preprocessing.mumin import load_mumin_heterodata
 from src.data_preprocessing.politifact import load_politifact_heterodata
 from src.data_utils import open_pickle, get_base_dir, save_dict_to_pickle
+#from src.network_analysis.plot_users import user_stats
 
 
 def construct_user_graph(hetero_data):
@@ -191,14 +192,21 @@ def topk_communities_analysis(df_communities, top_k_users, strategy):
 """ LOAD/GENERATE GRAPHS """
 #print("Graph generation...")
 heterodata = load_politifact_heterodata()
-user_graph, user_id_map = construct_user_graph(heterodata)
+#user_graph, user_id_map = construct_user_graph(heterodata)
 #print(user_graph)
 
 
 """ COMPUTE USER STATS wrt LABELS"""
-user_stats = user_news_discussion_stats(heterodata, target_type="news")
+user_stats_labels = user_news_discussion_stats(heterodata, target_type="news")
+df = pd.DataFrame(
+    [(user_id, inner_tuple[0], inner_tuple[1], inner_tuple[2]) for user_id, inner_tuple in user_stats_labels],
+    columns=["user_id", "no_true_news_discussed", "no_false_news_discussed", "no_tot_news_discussed"]
+)
+df.to_csv(os.path.join(get_base_dir(), "users_stats_labels.csv"), index=False)
+print(df.shape)
 
-out_dir = get_base_dir()
+
+#out_dir = get_base_dir()
 '''
 fname = "user_label_stats.pkl"
 save_dict_to_pickle(user_stats, os.path.join(out_dir, fname))

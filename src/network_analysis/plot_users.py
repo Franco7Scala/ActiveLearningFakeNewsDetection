@@ -3,8 +3,7 @@ import matplotlib.pyplot as plt
 import torch
 import numpy as np
 
-from data_preprocessing.mumin import load_mumin_heterodata
-from network_analysis.important_nodes_analysis_v2 import user_claim_discussion_stats
+#from network_analysis.important_nodes_analysis_v2 import user_claim_discussion_stats
 
 
 def plot_user_embeddings_with_claims(user_embeddings, user_stats):
@@ -60,10 +59,11 @@ def plot_user_embeddings_with_claims(user_embeddings, user_stats):
     plt.show()
 
 
-
+"""
 heterodata = load_mumin_heterodata()
 user_embeddings = heterodata['user'].x
 num_users = user_embeddings.shape[0]
 
 user_stats = user_claim_discussion_stats(heterodata, num_users)
 plot_user_embeddings_with_claims(user_embeddings, user_stats)
+"""
