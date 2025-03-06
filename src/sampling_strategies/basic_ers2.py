@@ -8,6 +8,9 @@ class BasicERS2(GenericERS2):
     def __init__(self):
         super(BasicERS2).__init__()
 
+    def _save_sub_graph(self, dict_selected, directory):
+        print("Unnecessary function!")
+
     def _select_new_nodes(self, current_split, tot_split, data, new_nodes, old_nodes):
         result = {}
         for n_type in data.x_dict:
@@ -15,7 +18,7 @@ class BasicERS2(GenericERS2):
 
         return result
 
-    def _select_old_nodes(self, current_split, tot_split, data, new_nodes, old_nodes, target_type):
+    def _select_old_nodes(self, current_split, tot_split, data, new_nodes, old_nodes, target_type, ranking_type=None):
         result = {}
         for n_type in data.x_dict:
             len_split = max(int(len(old_nodes[n_type]) / tot_split), len(old_nodes[n_type]))

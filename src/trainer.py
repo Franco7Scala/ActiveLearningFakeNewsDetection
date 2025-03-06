@@ -2,68 +2,39 @@ import os
 import torch
 import numpy as np
 
-from sklearn.metrics import f1_score, roc_auc_score
-from data_utils import create_nodes_dict_full, create_nodes_dict_empty
-from src.utils import cprint, Color
+from sklearn.metrics import f1_score
+from src.data_utils import save_dict_to_pickle
 
 
-# Model training
-def train_node_classifier(model, all_data, new_nodes, new_edges, old_nodes, old_edges, optimizer, criterion, scheduler, target_type, run, strategy, directory, n_epochs=200):
-    data_splits = strategy.sample(n_epochs, all_data, new_nodes, new_edges, old_nodes, old_edges)
-    for epoch in range(0, n_epochs):
+def train(model, data, optimizer, criterion, target_type, ranking_type, directory, n_epochs=200):
+    for epoch in range(n_epochs):
         model.train()
         optimizer.zero_grad()
-        data = data_splits[epoch]
-        out, _ = model(data.x_dict, data.edge_index_dict)
+        out, embeddings = model(data.x_dict, data.edge_index_dict)
         mask = data[target_type].train_mask
         loss = criterion(out[target_type][mask], data[target_type].y[mask])
         loss.backward()
         optimizer.step()
-        scheduler.step()
-        f1_micro, f1_macro, f1_weigh, auc = eval_node_classifier(model, data, target_type, run, directory)
-        if epoch + 1 % 20 == 0:
-            print(f'Epoch: {epoch + 1:03d}, Train Loss: {loss:.3f}, Val f1_micro: {f1_micro:.3f}')
-    return model
+        f1_micro, f1_macro, f1_weigh, auc = evaluate(model, data, target_type, directory)
+        print(f"Epoch: {epoch + 1:03d}, Train Loss: {loss:.3f}, Val f1_micro: {f1_micro:.3f}")
+
+    save_dict_to_pickle(embeddings, f"{directory}/embeddings_after_training.pkl")
+    user_np = embeddings[ranking_type].cpu().detach().numpy()
+    news_np = embeddings[target_type].cpu().detach().numpy()
+    np.save(f"{directory}/embeddings_{target_type}_np.npy", user_np)
+    np.save(f"{directory}/embeddings_{target_type}_np.npy", news_np)
 
 
-def train_node_classifier_single_snapshot(model, all_data, optimizer, criterion, target_type, run, strategy, directory, n_epochs=200, n_cycles=10):
-    for cycle in range(n_cycles):
-        #data_splits = strategy.sample(1, all_data, create_nodes_dict_empty(all_data), {}, create_nodes_dict_full(all_data), {}, target_type, save=True, cycle=cycle)
-        for epoch in range(n_epochs):
-            model.train()
-            optimizer.zero_grad()
-            data = all_data #data_splits[0]
-            out, _ = model(data.x_dict, data.edge_index_dict)
-            mask = data[target_type].train_mask
-            loss = criterion(out[target_type][mask], data[target_type].y[mask])
-            loss.backward()
-            optimizer.step()
-            f1_micro, f1_macro, f1_weigh, auc = eval_node_classifier(model, data, target_type, run, directory)
-            print(f'Epoch: {epoch + 1:03d}, Train Loss: {loss:.3f}, Val f1_micro: {f1_micro:.3f}')
-
-    cprint("Looking for best samples...", Color.EXPERIMENT_STATUS_HIGH_PRIORITY)
-    data_splits = strategy.sample(1, all_data, create_nodes_dict_empty(all_data), {}, create_nodes_dict_full(all_data), {}, target_type, save=True, cycle=cycle)
-    return model
-
-
-def eval_node_classifier(model, data, target_type, run, directory):
+def evaluate(model, data, target_type, directory):
     model.eval()
     with torch.no_grad():
         out, embeddings = model(data.x_dict, data.edge_index_dict)
-        pred = out[target_type].argmax(dim=-1)
-        #pred = model(data.x_dict, data.edge_index_dict)['author'].argmax(dim=-1)
-        pred_prob = torch.nn.functional.softmax(model(data.x_dict, data.edge_index_dict)[0][target_type], -1)
-        mask = data[target_type].val_mask
-        #correct = (pred[mask] == data[target_type].y[mask]).sum()
-        #acc = int(correct) / int(mask.sum())
-        f1_micro = f1_score(data[target_type].y.cpu(), pred.cpu(), average='micro')
-        f1_macro = f1_score(data[target_type].y.cpu(), pred.cpu(), average='macro')
-        f1_weigh = f1_score(data[target_type].y.cpu(), pred.cpu(), average='weighted')
-        #servono predicted probabilities, no. of classes
-        #auc = roc_auc_score(data[target_type].y.cpu(), pred_prob.cpu().detach().numpy(), average='macro', multi_class='ovo')
-
+        prediction = out[target_type].argmax(dim=-1)
+        f1_micro = f1_score(data[target_type].y.cpu(), prediction.cpu(), average="micro")
+        f1_macro = f1_score(data[target_type].y.cpu(), prediction.cpu(), average="macro")
+        f1_weigh = f1_score(data[target_type].y.cpu(), prediction.cpu(), average="weighted")
         # Save embeddings for validation set
         val_embeddings = embeddings[target_type].cpu().numpy()
-        np.save(os.path.join(directory, 'embeddings_'+str(run)+'.npy'), val_embeddings)
+        np.save(os.path.join(directory, "embeddings.npy"), val_embeddings)
 
-        return f1_micro, f1_macro, f1_weigh, 0 #, auc
+        return f1_micro, f1_macro, f1_weigh, 0

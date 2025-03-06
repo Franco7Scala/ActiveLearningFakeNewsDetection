@@ -1,5 +1,6 @@
 from sys import meta_path
 
+import requests
 import torch
 import os
 import time
@@ -119,4 +120,9 @@ def get_time_in_millis():
     return int(round(time.time() * 1000))
 
 
-
+def send_telegram_notification(message):
+    token = "7531410690:AAERJ_0H8THYS098xpSMvzVfPrflMr3iaW8"
+    chat_ids = ["255950847", "496539491"] # FS, LM
+    for chat_id in chat_ids:
+        url = f"https://api.telegram.org/bot{token}/sendMessage?chat_id={chat_id}&text={message}"
+        requests.get(url)
