@@ -3,6 +3,7 @@ import torch
 import pickle
 
 from src.sampling_strategies.basic_ers2 import BasicERS2
+from src.utils import get_time_in_millis
 
 
 class ActiveERS2(BasicERS2):
@@ -43,7 +44,7 @@ class ActiveERS2(BasicERS2):
                     else:
                         subset_dict[node_type] = torch.tensor([]).to(torch.int).to(data[data.node_types[0]].x.device)
 
-                score = self.al_technique.get_score(data.subgraph(subset_dict).to(data[data.node_types[0]].x.device), target_type)
+                score = self.al_technique.get_score(data.subgraph(subset_dict).to(data[data.node_types[0]].x.device), ranking_type)
                 scores_nodes_of_type.append((ranking_type, j, score))
 
         # sorting nodes keeping index and related score

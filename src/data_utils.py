@@ -289,10 +289,7 @@ def encoding_short_text(df, col, target_dim=64):
         embeddings = embeddings.apply(replace_missing)
 
     embeddings_matrix = np.vstack(embeddings)
-    #TODO per dataset intero
-    #pca = PCA(n_components=min(target_dim, embeddings_matrix.shape[0])) #serve per il subset #'mle'.
-    #reduced_embeddings = pca.fit_transform(embeddings_matrix)
-    #df[col + '_encoded'] = [embedding.tolist() for embedding in reduced_embeddings]  # Store the reduced embeddings in a single column as lists
+
     df[col + '_encoded'] = [embedding.tolist() for embedding in
                             embeddings_matrix]  # Store the reduced embeddings in a single column as lists
     df.drop([col], axis=1, inplace=True)

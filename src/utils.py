@@ -136,8 +136,8 @@ def str_to_bool(v):
 
 
 def send_telegram_notification(message):
-    token = "7531410690:AAERJ_0H8THYS098xpSMvzVfPrflMr3iaW8"
-    chat_ids = ["255950847", "496539491"] # FS, LM
+    token = "***"
+    chat_ids = ["***", "***"] # FS, LM
     for chat_id in chat_ids:
         url = f"https://api.telegram.org/bot{token}/sendMessage?chat_id={chat_id}&text={message}"
         requests.get(url)
