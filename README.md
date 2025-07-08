@@ -100,7 +100,9 @@ Post-hoc methods outperform traditional centrality metrics in both **influence r
 
 ## Citation
 
-To be added upon publication.
+```
+Coming soon...
+```
 
 ## License
 
