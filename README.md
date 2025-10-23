@@ -101,7 +101,26 @@ Post-hoc methods outperform traditional centrality metrics in both **influence r
 ## Citation
 
 ```
-Coming soon...
+@InProceedings{10.1007/978-3-032-05461-6_4,
+ author="Martirano, Liliana
+ and Scala, Francesco
+ and Comito, Carmela
+ and Pontieri, Luigi",
+ editor="D{\v{z}}eroski, Sa{\v{s}}o
+ and Levati{\'{c}}, Jurica
+ and Pio, Gianvito
+ and Simidjievski, Nikola",
+ title="Who Drives Misinformation? Key Node Detection with Heterogeneous Graph Neural Networks",
+ booktitle="Discovery Science",
+ year="2025",
+ publisher="Springer Nature Switzerland",
+ address="Cham",
+ pages="47--62",
+ abstract="Misinformation propagation in online networks involves multifaceted interactions between users, contents, and engagement mechanisms (likes, shares, comments). Addressing this issue entails both understanding how information spreads and identifying influential users driving the dissemination process. To tackle these challenges, this paper proposes a framework based on a Graph Attention Network model, applied to a heterogeneous graph representing social interactions and context-aware dynamics. Targeting the binary classification of real vs fake news, it offers insights into both propagation patterns and influential users in the dissemination process. A core contribution is the adoption of two post-hoc mechanisms for uncovering such users: uncertainty-based Active learning-like and GNN-Explainer. A detailed comparative analysis reveals that nodes where the model exhibits the highest confidence often lack rich content information; nevertheless, combining both high-confidence and content-rich nodes grasps complementary aspects and better aligns with influential users in information propagation. The framework is benchmarked against traditional centrality measures, widely used to identify influential users in social networks. A comparative evaluation on two heterogeneous, real-world, social networks confirms that the proposed method both achieves compelling accuracy in finding influential nodes and shows a potential to scale-up to densely-connected graphs on which classic approaches may fail.",
+ isbn="978-3-032-05461-6"
+}
+
+
 ```
 
 ## License
