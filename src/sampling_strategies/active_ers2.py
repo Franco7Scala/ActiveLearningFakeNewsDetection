@@ -3,6 +3,7 @@ import torch
 import pickle
 
 from src.sampling_strategies.basic_ers2 import BasicERS2
+from src.utils import get_time_in_millis
 
 
 class ActiveERS2(BasicERS2):
@@ -14,6 +15,8 @@ class ActiveERS2(BasicERS2):
 
     def _select_old_nodes(self, current_split, tot_split, data, new_nodes, old_nodes, target_type, ranking_type=None):
         if current_split == 0:
+            self.target_type = target_type
+            self.ranking_type = ranking_type
             self._calculate_splits(tot_split, data, old_nodes, target_type, ranking_type)
         
         return self.splits[current_split]
@@ -25,7 +28,7 @@ class ActiveERS2(BasicERS2):
 
         save_dir = f"{directory}/selected"
         os.makedirs(save_dir, exist_ok=True)
-        with open(f"{save_dir}/selected_{self.al_technique.__class__.__name__}.pkl", "wb") as handle:
+        with open(f"{save_dir}/selected_{self.al_technique.__class__.__name__}_target_{self.target_type}_ranking_{self.ranking_type}.pkl", "wb") as handle:
             pickle.dump(res, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     def _calculate_splits(self, tot_split, data, old_nodes, target_type, ranking_type):
@@ -41,7 +44,7 @@ class ActiveERS2(BasicERS2):
                     else:
                         subset_dict[node_type] = torch.tensor([]).to(torch.int).to(data[data.node_types[0]].x.device)
 
-                score = self.al_technique.get_score(data.subgraph(subset_dict).to(data[data.node_types[0]].x.device), target_type)
+                score = self.al_technique.get_score(data.subgraph(subset_dict).to(data[data.node_types[0]].x.device), ranking_type)
                 scores_nodes_of_type.append((ranking_type, j, score))
 
         # sorting nodes keeping index and related score

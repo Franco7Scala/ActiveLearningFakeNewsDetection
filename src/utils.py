@@ -1,3 +1,4 @@
+from argparse import ArgumentTypeError
 from sys import meta_path
 
 import requests
@@ -120,9 +121,23 @@ def get_time_in_millis():
     return int(round(time.time() * 1000))
 
 
+def str_to_bool(v):
+    if isinstance(v, bool):
+        return v
+
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+
+    else:
+        raise ArgumentTypeError('Boolean value expected.')
+
+
 def send_telegram_notification(message):
-    token = "7531410690:AAERJ_0H8THYS098xpSMvzVfPrflMr3iaW8"
-    chat_ids = ["255950847", "496539491"] # FS, LM
+    token = "***"
+    chat_ids = ["***", "***"] # FS, LM
     for chat_id in chat_ids:
         url = f"https://api.telegram.org/bot{token}/sendMessage?chat_id={chat_id}&text={message}"
         requests.get(url)

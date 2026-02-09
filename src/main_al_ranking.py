@@ -9,7 +9,7 @@ from src.data_loading.politifact import load_politifact_heterodata
 from src.data_utils import create_nodes_dict_empty, create_nodes_dict_full
 from src.models.GAT_enhanced import GAT_enhanced
 from src.sampling_strategies.active_ers2 import ActiveERS2
-from src.utils import set_random_seed, training_seeds, compute_weights, cprint, Color, send_telegram_notification
+from src.utils import set_random_seed, training_seeds, compute_weights, cprint, Color, send_telegram_notification, str_to_bool
 from src.trainer import evaluate
 from data_utils import get_base_dir
 from torch_geometric.nn import to_hetero
@@ -29,7 +29,7 @@ if __name__ == "__main__":
     uncertainty_sampling_technique = getattr(importlib.import_module("src.al_techniques.uncertainty_al_techniques"), sys.argv[1])
     ranking_type = sys.argv[2]
     dataset_name = sys.argv[3]
-    force_retrain = bool(sys.argv[4])
+    force_retrain = str_to_bool(sys.argv[4])
     n_epochs = int(sys.argv[5])
 
     ranking_strategy = ActiveERS2
